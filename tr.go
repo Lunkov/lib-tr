@@ -95,15 +95,15 @@ func SetDef(text string) {
   trmu.Unlock()
 }
 
-func Tr(lang , text string) string {
+func Tr(lang , text string) (string, bool) {
   key := getMD5Hash(text)
   tr, ok := mapTrs[lang][key]
   if ok {
-    return tr
+    return tr, true
   }
   tr, ok = mapTrs[langDef][key]
   if ok {
-    return tr
+    return tr, false
   }
   trmu.Lock()
   if mapNeedTrs[lang] == nil {
@@ -111,7 +111,7 @@ func Tr(lang , text string) string {
   }
   mapNeedTrs[lang][key] = text
   trmu.Unlock()
-  return "--TEXT NOT FOUND--"
+  return text, false
 }
 
 func getMD5Hash(text string) string {
@@ -149,7 +149,7 @@ func LoadLangs(filename string) bool {
 func LoadTrs(scanPath string) bool {
   for lang_code, _ := range mapLangs {
     filepath.Walk(scanPath + "/" + lang_code, func(filename string, f os.FileInfo, err error) error {
-      if f != nil && f.IsDir() == false {
+      if f != nil && f.IsDir() == false && filepath.Ext(filename) == ".yaml" {
         loadTrs(lang_code, filename)
       }
       return nil
@@ -195,7 +195,7 @@ func SaveNew(scanPath string) bool {
         glog.Errorf("ERR: TR: Marshal, err = %v", err)
       } else {
         folderPath := scanPath + "/" + lang_code
-        filename := folderPath + "/!tr_new.yaml"
+        filename := folderPath + "/tr_new.!yaml"
         os.MkdirAll(folderPath, os.ModePerm)
         err = ioutil.WriteFile(filename, d, 0644)
         if err != nil {

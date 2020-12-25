@@ -24,15 +24,17 @@ func TestCheckTr(t *testing.T) {
   LoadTrs(configPath + "/tr1")
   SetDef("Привет!")
   tr_str_need := "مرحبًا!"
-  tr_str := Tr("ar_EG", "Привет!")
+  tr_str, ok := Tr("ar_EG", "Привет!")
+  assert.Equal(t, true, ok)
   assert.Equal(t, tr_str_need, tr_str)
 
-  tr_str_need = "--TEXT NOT FOUND--"
-  tr_str = Tr("ar_EG", "Привет :)")
+  tr_str_need = "Привет :-)"
+  tr_str, ok = Tr("ar_EG", tr_str_need)
+  assert.Equal(t, false, ok)
   assert.Equal(t, tr_str_need, tr_str)
 
-  tr_str_need = "--TEXT NOT FOUND--"
-  tr_str = Tr("en_US", "Привет :)")
+  tr_str, _ = Tr("en_US", tr_str_need)
+  assert.Equal(t, false, ok)
   assert.Equal(t, tr_str_need, tr_str)
   
   SaveNew(configPath + "/tr1")
