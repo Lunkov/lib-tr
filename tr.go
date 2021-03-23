@@ -19,13 +19,23 @@ import (
 
 
 type Texts   map[string]string
-
 const langDef = "default"
-var trmu sync.RWMutex
-var mapNeedTrs   = make(map[string]Texts)
-var mapTrs       = make(map[string]Texts)
-var mapLangs     = make(map[string]string)
-var jsonTr []byte // is string
+
+type Tr struct {
+  trmu          sync.RWMutex
+  mapNeedTrs    map[string]Texts
+  mapTrs        map[string]Texts
+  mapLangs      map[string]string
+  jsonTr        []byte // is string
+}
+
+func New() (*Tr) {
+  return &Tr{
+      mapNeedTrs: make(map[string]Texts),
+      mapTrs    : make(map[string]Texts),
+      mapLangs  : make(map[string]string),
+  }
+}
 
 func GetLocale() (string, bool) {
   // Check the LANG environment variable, common on UNIX.
@@ -56,13 +66,13 @@ func GetLocale() (string, bool) {
   return "", false
 }
 
-func Count() int {
-  return len(mapTrs)
+func (t *Tr) Count() int {
+  return len(t.mapTrs)
 }
 
-func GetList() *map[string]map[string]string {
+func (t *Tr) GetList() *map[string]map[string]string {
   res := make(map[string]map[string]string)
-  for key, item := range mapLangs {
+  for key, item := range t.mapLangs {
     res[key] = make(map[string]string)
     res[key]["code"] = key
     res[key]["display_name"] = item
@@ -70,12 +80,12 @@ func GetList() *map[string]map[string]string {
   return &res
 }
 
-func LangCount() int {
-  return len(mapLangs)
+func (t *Tr) LangCount() int {
+  return len(t.mapLangs)
 }
 
-func LangName(lang string) string {
-  lang_name, ok := mapLangs[lang]
+func (t *Tr) LangName(lang string) string {
+  lang_name, ok := t.mapLangs[lang]
   if ok {
     return lang_name
   }
@@ -86,31 +96,31 @@ func LangDefault() string {
   return langDef
 }
 
-func SetDef(text string) {
-  trmu.Lock()
-  if mapTrs[langDef] == nil {
-    mapTrs[langDef] = make(Texts)
+func (t *Tr) SetDef(text string) {
+  t.trmu.Lock()
+  if t.mapTrs[langDef] == nil {
+    t.mapTrs[langDef] = make(Texts)
   }
-  mapTrs[langDef][getMD5Hash(text)] = text
-  trmu.Unlock()
+  t.mapTrs[langDef][getMD5Hash(text)] = text
+  t.trmu.Unlock()
 }
 
-func Tr(lang , text string) (string, bool) {
+func (t *Tr) Tr(lang , text string) (string, bool) {
   key := getMD5Hash(text)
-  tr, ok := mapTrs[lang][key]
+  tr, ok := t.mapTrs[lang][key]
   if ok {
     return tr, true
   }
-  tr, ok = mapTrs[langDef][key]
+  tr, ok = t.mapTrs[langDef][key]
   if ok {
     return tr, false
   }
-  trmu.Lock()
-  if mapNeedTrs[lang] == nil {
-    mapNeedTrs[lang] = make(Texts)
+  t.trmu.Lock()
+  if t.mapNeedTrs[lang] == nil {
+    t.mapNeedTrs[lang] = make(Texts)
   }
-  mapNeedTrs[lang][key] = text
-  trmu.Unlock()
+  t.mapNeedTrs[lang][key] = text
+  t.trmu.Unlock()
   return text, false
 }
 
@@ -120,37 +130,37 @@ func getMD5Hash(text string) string {
   return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func JSON() []byte {
-  return jsonTr
+func (t *Tr) JSON() []byte {
+  return t.jsonTr
 }
 
-func LoadLangs(filename string) bool {
+func (t *Tr) LoadLangs(filename string) bool {
   yamlFile, err := ioutil.ReadFile(filename)
   if err != nil {
     glog.Errorf("ERR: ReadFile.yamlFile(%s)  #%v ", filename, err)
     return false
   } else {
-    err = yaml.Unmarshal(yamlFile, &mapLangs)
+    err = yaml.Unmarshal(yamlFile, &t.mapLangs)
     if err != nil {
       glog.Errorf("ERR: yamlFile(%s): YAML: %v", filename, err)
       return false
     }
   }
-  jsonTr, _ = json.Marshal(mapLangs)
-  mapNeedTrs[langDef] = make(Texts)
-  mapTrs[langDef] = make(Texts)
-  for i, _ := range mapLangs {
-    mapTrs[i] = make(Texts)
-    mapNeedTrs[i] = make(Texts)
+  t.jsonTr, _ = json.Marshal(t.mapLangs)
+  t.mapNeedTrs[langDef] = make(Texts)
+  t.mapTrs[langDef] = make(Texts)
+  for i, _ := range t.mapLangs {
+    t.mapTrs[i] = make(Texts)
+    t.mapNeedTrs[i] = make(Texts)
   }
   return true
 }
 
-func LoadTrs(scanPath string) bool {
-  for lang_code, _ := range mapLangs {
+func (t *Tr) LoadTrs(scanPath string) bool {
+  for lang_code, _ := range t.mapLangs {
     filepath.Walk(scanPath + "/" + lang_code, func(filename string, f os.FileInfo, err error) error {
       if f != nil && f.IsDir() == false && filepath.Ext(filename) == ".yaml" {
-        loadTrs(lang_code, filename)
+        t.loadTrs(lang_code, filename)
       }
       return nil
     })
@@ -158,7 +168,7 @@ func LoadTrs(scanPath string) bool {
   return true
 }
 
-func loadTrs(lang, filename string) bool {
+func (t *Tr) loadTrs(lang, filename string) bool {
   yamlFile, err := ioutil.ReadFile(filename)
   if err != nil {
     glog.Errorf("ERR: ReadFile.yamlFile(%s)  #%v ", filename, err)
@@ -171,17 +181,17 @@ func loadTrs(lang, filename string) bool {
       return false
     }
     for key, text := range mapTmp {
-      mapTrs[lang][key] = text
+      t.mapTrs[lang][key] = text
     }
   }
   return true
 }
 
-func SaveNew(scanPath string) bool {
-  for lang_code, _ := range mapLangs {
-    mapTmp := mapNeedTrs[lang_code]
-    for key, text := range mapTrs[langDef] {
-      _, ok := mapTrs[lang_code][key]
+func (t *Tr) SaveNew(scanPath string) bool {
+  for lang_code, _ := range t.mapLangs {
+    mapTmp := t.mapNeedTrs[lang_code]
+    for key, text := range t.mapTrs[langDef] {
+      _, ok := t.mapTrs[lang_code][key]
       if !ok {
         mapTmp[key] = text
         if glog.V(9) {
