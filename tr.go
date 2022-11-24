@@ -19,6 +19,7 @@ import (
 
 
 type Texts   map[string]string
+
 const langDef = "default"
 
 type Tr struct {
@@ -107,13 +108,13 @@ func (t *Tr) SetDef(text string) {
 
 func (t *Tr) Tr(lang , text string) (string, bool) {
   key := getMD5Hash(text)
-  tr, ok := t.mapTrs[lang][key]
+  trText, ok := t.mapTrs[lang][key]
   if ok {
-    return tr, true
+    return trText, true
   }
-  tr, ok = t.mapTrs[langDef][key]
-  if ok {
-    return tr, false
+  trText, ok = t.mapTrs[langDef][key]
+  if !ok {
+    trText = text
   }
   t.trmu.Lock()
   if t.mapNeedTrs[lang] == nil {
@@ -121,7 +122,7 @@ func (t *Tr) Tr(lang , text string) (string, bool) {
   }
   t.mapNeedTrs[lang][key] = text
   t.trmu.Unlock()
-  return text, false
+  return trText, false
 }
 
 func getMD5Hash(text string) string {
